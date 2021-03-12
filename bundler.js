@@ -5,6 +5,7 @@ const traverse = require("babel-traverse").default;
 const babel = require("babel-core");
 
 let ID = 0;
+
 function createAsset(filename) {
   const content = fs.readFileSync(filename, "utf-8");
   const ast = babylon.parse(content, { sourceType: "module" });
@@ -19,8 +20,8 @@ function createAsset(filename) {
   const id = ID++;
 
   const { code } = babel.transformFromAst(ast, null, {
-    presets: ['env']// tell babel how to transform the code
-  })
+    presets: ["env"] // tell babel how to transform the code
+  });
 
   return {
     id,
@@ -58,16 +59,29 @@ function bundle(graph) {
         ${mod.code}
       },
       ${JSON.stringify(mod.mapping)}
-    ]`;
-  })
+    ],`;
+  });
   const result = `
-  (function () {
+    (function (modules) {
+      function require(id) {
+        const [fn, mapping] = modules[id];
 
-  })({${modules}})
+        function localRequire(relativePath) {
+          return require(mapping[relativePath]);
+        }
+
+        const module = { exports: {} };
+        fn(localRequire, module, module.exports);
+
+        return module.exports;
+      }
+      require(0);
+    })({${modules}})
 	`;
   return result;
 }
 
 const graph = createGraph("./example/entry.js");
-const bundled = bundle(graph);
-console.log(bundled);
+const result = bundle(graph);
+
+fs.writeFileSync("./bundle.js", result);
